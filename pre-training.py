@@ -1,23 +1,21 @@
 # -*- coding = utf-8 -*-
-import numpy as np
 import torch
 from torch import nn
 
 from dataset.VOCdataset import VOCSegmentationDataset
 from torch.utils.data import DataLoader
 from torch.nn import CrossEntropyLoss
-import matplotlib.pyplot as plt
 
 from model.model import Model
 
 
-def training(model, devices, train_loader, optimizer, loss, epoch):
+def training(model, device, train_loader, optimizer, loss, epoch):
     print('Training on {} samples...'.format(len(train_loader.dataset)))
-    model.train()  # 训练模式 - GCNNet.dropout = True
+    model.train()
     for batch_idx, data in enumerate(train_loader):
+        data = data.to(device[0])
         image, split_masks, text_embeddings = data['image'], data['split_masks'], data['text_embeddings']
         optimizer.zero_grad()
-        image, text_embeddings = image.to(devices[0]), text_embeddings.to(devices[0])
         prediction = model(image, text_embeddings)
         loss = loss(prediction, split_masks)
         loss.backward()
@@ -49,8 +47,10 @@ devices = [torch.device(f'cuda:{i}') for i in range(device_count)]
 
 # 定义模型
 model = Model()
-model = nn.DataParallel(model, device_ids=devices)
 model.image_encoder.load_state_dict(torch.load('./checkpoints/mae_pretrain_vit_base.pth'), strict=False)
+model = nn.DataParallel(model, device_ids=devices)
+model.to(devices[0])
+
 # 定义损失函数
 loss = CrossEntropyLoss()
 # 定义优化器
